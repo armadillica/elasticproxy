@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -50,4 +52,38 @@ func (s *ElasticProxyTestSuite) TestGETHappy(t *check.C) {
 
 	assert.Equal(t, 200, respRec.Code)
 	assert.Equal(t, "application/json", respRec.Header().Get("Content-Type"))
+}
+
+func (s *ElasticProxyTestSuite) TestPUTBlocked(t *check.C) {
+	seenAnyRequest := false
+	responder := func(req *http.Request) (*http.Response, error) {
+		seenAnyRequest = true
+		return nil, errors.New("unexpected request")
+	}
+	httpmock.RegisterNoResponder(responder)
+
+	respRec := httptest.NewRecorder()
+	request, _ := http.NewRequest("PUT", "/tasks/index/ABC123",
+		bytes.NewReader([]byte(`{"_id": "ABC123"}`)))
+	s.proxy.ServeHTTP(respRec, request)
+
+	assert.False(t, seenAnyRequest, "HTTP request was proxied")
+	assert.Equal(t, http.StatusMethodNotAllowed, respRec.Code)
+}
+
+func (s *ElasticProxyTestSuite) TestWebsocketBlocked(t *check.C) {
+	seenAnyRequest := false
+	responder := func(req *http.Request) (*http.Response, error) {
+		seenAnyRequest = true
+		return nil, errors.New("unexpected request")
+	}
+	httpmock.RegisterNoResponder(responder)
+
+	respRec := httptest.NewRecorder()
+	request, _ := http.NewRequest("GET", "/tasks/index/ABC123", nil)
+	request.Header.Set("Upgrade", "websocket")
+	s.proxy.ServeHTTP(respRec, request)
+
+	assert.False(t, seenAnyRequest, "HTTP request was proxied")
+	assert.Equal(t, http.StatusNotImplemented, respRec.Code)
 }
