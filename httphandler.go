@@ -63,6 +63,7 @@ func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: add timeout check
 	status = resp.StatusCode
 	w.WriteHeader(resp.StatusCode)
 	_, err = io.Copy(w, resp.Body)

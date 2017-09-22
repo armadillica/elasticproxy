@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -55,6 +56,14 @@ func main() {
 		log.Fatalf("Invalid URL %q: %s", cliArgs.elasticURL, err)
 	}
 	log.Infof("Starting ElasticProxy, proxying to %s", elasticURL.String())
+
+	// Set some more or less sensible limits & timeouts.
+	http.DefaultTransport = &http.Transport{
+		MaxIdleConns:          100,
+		TLSHandshakeTimeout:   3 * time.Second,
+		IdleConnTimeout:       15 * time.Minute,
+		ResponseHeaderTimeout: 5 * time.Second,
+	}
 
 	proxy := CreateElasticProxy(elasticURL)
 	err = http.ListenAndServe("[::]:9200", proxy)
