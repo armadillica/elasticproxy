@@ -1,8 +1,9 @@
 package main
 
 import (
-	"io"
+	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"time"
 
@@ -11,12 +12,16 @@ import (
 
 // ElasticProxy forwards received HTTP calls to another HTTP server.
 type ElasticProxy struct {
-	url *url.URL
+	url   *url.URL
+	proxy *httputil.ReverseProxy
 }
 
 // CreateElasticProxy returns a new elasticProxy object.
 func CreateElasticProxy(elasticURL *url.URL) *ElasticProxy {
-	return &ElasticProxy{url: elasticURL}
+	return &ElasticProxy{
+		url:   elasticURL,
+		proxy: httputil.NewSingleHostReverseProxy(elasticURL),
+	}
 }
 
 // ServeHTTP only forwards allowed requests to the real ElasticSearch server.
@@ -25,13 +30,13 @@ func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	startTime := time.Now().UTC()
 	defer func() {
-		if status == 0 {
-			status = http.StatusInternalServerError
-			w.WriteHeader(status)
-		}
 		endTime := time.Now().UTC()
 		duration := endTime.Sub(startTime)
-		log.Infof("%s %s %s %d %v", r.RemoteAddr, r.Method, r.URL.String(), status, duration)
+		if status == 0 {
+			log.Infof("%s %s %s (proxied) %v", r.RemoteAddr, r.Method, r.URL.String(), duration)
+		} else {
+			log.Infof("%s %s %s %d %v", r.RemoteAddr, r.Method, r.URL.String(), status, duration)
+		}
 	}()
 
 	if r.Method != "GET" {
@@ -40,35 +45,15 @@ func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.URL == nil {
-		status = http.StatusBadRequest
+	if r.Header.Get("Upgrade") == "websocket" {
+		log.Warningf("%s request from %s with Upgrade: websocket", r.Method, r.RemoteAddr)
+		status = http.StatusNotImplemented
 		w.WriteHeader(status)
-		log.Warningf("%s request from %s without URL received", r.Method, r.RemoteAddr)
+		fmt.Fprintln(w, "Websockets not supported")
 		return
 	}
 
-	proxyURL := ep.url.ResolveReference(r.URL).String()
-
-	// Perform request to the real ElasticSearch
-	proxyReq, err := http.NewRequest(r.Method, proxyURL, r.Body)
-	if err != nil {
-		log.Warningf("unable to create %s request to %s: %s", r.Method, proxyURL, err)
-		return
-	}
-	proxyReq.Header = r.Header
-	client := &http.Client{}
-	resp, err := client.Do(proxyReq)
-	if err != nil {
-		log.Warningf("unable to perform %s request to %s: %s", r.Method, proxyURL, err)
-		return
-	}
-
-	// TODO: add timeout check
-	status = resp.StatusCode
-	w.WriteHeader(resp.StatusCode)
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
-		log.Warningf("unable to copy body from %s request to %s: %s", r.Method, proxyURL, err)
-		return
-	}
+	// All our checks were fine, so now we can defer to the ReverseProxy to do the actual work.
+	r.Header.Set("Host", ep.url.Host)
+	ep.proxy.ServeHTTP(w, r)
 }
