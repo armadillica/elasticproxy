@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"time"
 
+	stdlog "log"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -40,6 +42,7 @@ func configLogging() {
 		level = log.InfoLevel
 	}
 	log.SetLevel(level)
+	stdlog.SetOutput(log.StandardLogger().Writer())
 }
 
 func main() {
