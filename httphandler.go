@@ -27,14 +27,13 @@ func CreateElasticProxy(elasticURL *url.URL) *ElasticProxy {
 // ServeHTTP only forwards allowed requests to the real ElasticSearch server.
 func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	status := 0
-
 	fields := log.Fields{
 		"remote_addr": r.RemoteAddr,
 		"method":      r.Method,
 		"url":         r.URL.String(),
 	}
-
 	startTime := time.Now().UTC()
+
 	defer func() {
 		endTime := time.Now().UTC()
 		fields["duration"] = endTime.Sub(startTime)
