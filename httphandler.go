@@ -28,14 +28,22 @@ func CreateElasticProxy(elasticURL *url.URL) *ElasticProxy {
 func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	status := 0
 
+	fields := log.Fields{
+		"remote_addr": r.RemoteAddr,
+		"method":      r.Method,
+		"url":         r.URL.String(),
+	}
+
 	startTime := time.Now().UTC()
 	defer func() {
 		endTime := time.Now().UTC()
-		duration := endTime.Sub(startTime)
+		fields["duration"] = endTime.Sub(startTime)
+
 		if status == 0 {
-			log.Infof("%s %s %s (proxied) %v", r.RemoteAddr, r.Method, r.URL.String(), duration)
+			log.WithFields(fields).Info("Request proxied")
 		} else {
-			log.Infof("%s %s %s %d %v", r.RemoteAddr, r.Method, r.URL.String(), status, duration)
+			fields["status"] = status
+			log.WithFields(fields).Info("Request handled")
 		}
 	}()
 
@@ -46,7 +54,7 @@ func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("Upgrade") == "websocket" {
-		log.Warningf("%s request from %s with Upgrade: websocket", r.Method, r.RemoteAddr)
+		log.WithFields(fields).Warning("Upgrade to websocket blocked")
 		status = http.StatusNotImplemented
 		w.WriteHeader(status)
 		fmt.Fprintln(w, "Websockets not supported")
