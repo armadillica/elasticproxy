@@ -43,7 +43,7 @@ func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			log.WithFields(fields).Info("Request proxied")
 		} else {
 			fields["status"] = status
-			log.WithFields(fields).Info("Request handled")
+			log.WithFields(fields).Info("Request blocked")
 		}
 	}()
 
