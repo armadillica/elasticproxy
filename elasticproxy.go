@@ -65,7 +65,7 @@ func main() {
 		MaxIdleConns:          100,
 		TLSHandshakeTimeout:   3 * time.Second,
 		IdleConnTimeout:       15 * time.Minute,
-		ResponseHeaderTimeout: 5 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
 	}
 
 	proxy := CreateElasticProxy(elasticURL)
