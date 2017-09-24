@@ -10,6 +10,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var allowedMethods = map[string]bool{
+	"GET":  true,
+	"HEAD": true,
+}
+var allowedPostPaths = map[string]bool{
+	"/_mget":            true,
+	"/_msearch":         true,
+	"/.kibana/_search":  true,
+	"/.kibana/_msearch": true,
+}
+
 // ElasticProxy forwards received HTTP calls to another HTTP server.
 type ElasticProxy struct {
 	url   *url.URL
@@ -42,11 +53,13 @@ func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			log.WithFields(fields).Info("Request proxied")
 		} else {
 			fields["status"] = status
-			log.WithFields(fields).Info("Request blocked")
+			log.WithFields(fields).Warning("Request blocked")
 		}
 	}()
 
-	if r.Method != "GET" {
+	if r.Method == "POST" && allowedPostPaths[r.URL.Path] {
+		log.WithFields(fields).Info("Allowing POST request")
+	} else if !allowedMethods[r.Method] {
 		status = http.StatusMethodNotAllowed
 		w.WriteHeader(status)
 		return
