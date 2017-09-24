@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -86,4 +87,48 @@ func (s *ElasticProxyTestSuite) TestWebsocketBlocked(t *check.C) {
 
 	assert.False(t, seenAnyRequest, "HTTP request was proxied")
 	assert.Equal(t, http.StatusNotImplemented, respRec.Code)
+}
+
+func (s *ElasticProxyTestSuite) TestPOSTBlocked(t *check.C) {
+	seenAnyRequest := false
+	responder := func(req *http.Request) (*http.Response, error) {
+		seenAnyRequest = true
+		return nil, errors.New("unexpected request")
+	}
+	httpmock.RegisterNoResponder(responder)
+
+	respRec := httptest.NewRecorder()
+	request, _ := http.NewRequest("POST", "/tasks/index",
+		bytes.NewReader([]byte(`{"_id": "ABC123"}`)))
+	s.proxy.ServeHTTP(respRec, request)
+
+	assert.False(t, seenAnyRequest, "HTTP request was proxied")
+	assert.Equal(t, http.StatusMethodNotAllowed, respRec.Code)
+}
+
+func (s *ElasticProxyTestSuite) TestPOSTSearchAccepted(t *check.C) {
+	var elasticJSON, returnedJSON struct {
+		Field    string `json:"field"`
+		Document struct {
+			Subfield time.Time `json:"subfield"`
+		} `json:"document"`
+	}
+	elasticJSON.Field = "Résultadas"
+	elasticJSON.Document.Subfield = time.Now().UTC()
+
+	responder, err := httpmock.NewJsonResponder(200, elasticJSON)
+	assert.Nil(t, err)
+	httpmock.RegisterResponder(
+		"POST", "http://elastic:9200/.kibana/_msearch",
+		responder,
+	)
+
+	respRec := httptest.NewRecorder()
+	request, _ := http.NewRequest("POST", "/.kibana/_msearch", nil)
+	s.proxy.ServeHTTP(respRec, request)
+
+	assert.Equal(t, 200, respRec.Code)
+	assert.Equal(t, "application/json", respRec.Header().Get("Content-Type"))
+	json.Unmarshal(respRec.Body.Bytes(), &returnedJSON)
+	assert.Equal(t, elasticJSON, returnedJSON)
 }
