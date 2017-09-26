@@ -12,7 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const elasticProxyVersion = "0.1"
+const elasticProxyVersion = "1.0"
 
 var cliArgs struct {
 	version    bool
