@@ -43,6 +43,10 @@ func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"method":      r.Method,
 		"url":         r.URL.String(),
 	}
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		fields["x_forwarded_for"] = xff
+	}
+
 	startTime := time.Now().UTC()
 
 	defer func() {
