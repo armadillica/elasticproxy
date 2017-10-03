@@ -45,6 +45,17 @@ func configLogging() {
 	stdlog.SetOutput(log.StandardLogger().Writer())
 }
 
+func logStartup(elasticURL *url.URL) {
+	level := log.GetLevel()
+	defer log.SetLevel(level)
+
+	log.SetLevel(log.InfoLevel)
+	log.WithFields(log.Fields{
+		"elastic": elasticURL.String(),
+		"version": elasticProxyVersion,
+	}).Info("Starting ElasticProxy")
+}
+
 func main() {
 	parseCliArgs()
 	if cliArgs.version {
@@ -58,7 +69,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Invalid URL %q: %s", cliArgs.elasticURL, err)
 	}
-	log.Infof("Starting ElasticProxy, proxying to %s", elasticURL.String())
+	logStartup(elasticURL)
 
 	// Set some more or less sensible limits & timeouts.
 	http.DefaultTransport = &http.Transport{
