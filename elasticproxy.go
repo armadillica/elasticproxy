@@ -19,6 +19,7 @@ var cliArgs struct {
 	verbose    bool
 	debug      bool
 	elasticURL string
+	listen     string
 }
 
 func parseCliArgs() {
@@ -26,6 +27,7 @@ func parseCliArgs() {
 	flag.BoolVar(&cliArgs.verbose, "verbose", false, "Enable info-level logging.")
 	flag.BoolVar(&cliArgs.debug, "debug", false, "Enable debug-level logging.")
 	flag.StringVar(&cliArgs.elasticURL, "elastic", "http://elastic:9200/", "URL of the ElasticSearch instance to proxy.")
+	flag.StringVar(&cliArgs.listen, "listen", "[::]:9200", "Address to listen on.")
 	flag.Parse()
 }
 
@@ -79,7 +81,9 @@ func main() {
 		ResponseHeaderTimeout: 15 * time.Second,
 	}
 
+	logFields := log.Fields{"listen": cliArgs.listen}
 	proxy := CreateElasticProxy(elasticURL)
-	err = http.ListenAndServe("[::]:9200", proxy)
-	log.Fatal(err)
+	log.WithFields(logFields).Info("Starting HTTP server")
+	err = http.ListenAndServe(cliArgs.listen, proxy)
+	log.WithFields(logFields).WithError(err).Fatal("HTTP server failed")
 }
