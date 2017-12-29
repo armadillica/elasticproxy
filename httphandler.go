@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
 var allowedMethods = map[string]bool{
-	"GET":  true,
 	"HEAD": true,
 }
 var allowedPostPaths = map[string]bool{
@@ -19,6 +19,16 @@ var allowedPostPaths = map[string]bool{
 	"/_msearch":         true,
 	"/.kibana/_search":  true,
 	"/.kibana/_msearch": true,
+}
+
+// Place the paths that Kibana frequently polls at the top.
+var allowedGetPathPrefixes = []string{
+	"/_cluster/",
+	"/.kibana/",
+	"/_nodes",
+	"/_mget",
+	"/_msearch",
+	"/cloudstats/",
 }
 
 // ElasticProxy forwards received HTTP calls to another HTTP server.
@@ -33,6 +43,15 @@ func CreateElasticProxy(elasticURL *url.URL) *ElasticProxy {
 		url:   elasticURL,
 		proxy: httputil.NewSingleHostReverseProxy(elasticURL),
 	}
+}
+
+func allowedGetPrefix(path string) bool {
+	for _, prefix := range allowedGetPathPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // ServeHTTP only forwards allowed requests to the real ElasticSearch server.
@@ -61,8 +80,10 @@ func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	if r.Method == "POST" && allowedPostPaths[r.URL.Path] {
-		log.WithFields(fields).Info("Allowing POST request")
+	if r.Method == "GET" && allowedGetPrefix(r.URL.Path) {
+		log.WithFields(fields).Debug("Allowing GET request")
+	} else if r.Method == "POST" && allowedPostPaths[r.URL.Path] {
+		log.WithFields(fields).Debug("Allowing POST request")
 	} else if !allowedMethods[r.Method] {
 		status = http.StatusMethodNotAllowed
 		w.WriteHeader(status)

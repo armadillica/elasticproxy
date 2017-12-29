@@ -43,6 +43,28 @@ func (s *ElasticProxyTestSuite) TestGETHappy(t *check.C) {
 	responder, err := httpmock.NewJsonResponder(200, respJSON)
 	assert.Nil(t, err)
 	httpmock.RegisterResponder(
+		"GET", "http://elastic:9200/cloudstats/index/ABC123",
+		responder,
+	)
+
+	respRec := httptest.NewRecorder()
+	request, _ := http.NewRequest("GET", "/cloudstats/index/ABC123", nil)
+	s.proxy.ServeHTTP(respRec, request)
+
+	assert.Equal(t, 200, respRec.Code)
+	assert.Equal(t, "application/json", respRec.Header().Get("Content-Type"))
+}
+
+func (s *ElasticProxyTestSuite) TestGETBlocked(t *check.C) {
+	var respJSON struct {
+		Field    string `json:"field"`
+		Document struct {
+			Subfield time.Time `json:"subfield"`
+		} `json:"document"`
+	}
+	responder, err := httpmock.NewJsonResponder(200, respJSON)
+	assert.Nil(t, err)
+	httpmock.RegisterResponder(
 		"GET", "http://elastic:9200/tasks/index/ABC123",
 		responder,
 	)
@@ -51,8 +73,7 @@ func (s *ElasticProxyTestSuite) TestGETHappy(t *check.C) {
 	request, _ := http.NewRequest("GET", "/tasks/index/ABC123", nil)
 	s.proxy.ServeHTTP(respRec, request)
 
-	assert.Equal(t, 200, respRec.Code)
-	assert.Equal(t, "application/json", respRec.Header().Get("Content-Type"))
+	assert.Equal(t, http.StatusMethodNotAllowed, respRec.Code)
 }
 
 func (s *ElasticProxyTestSuite) TestPUTBlocked(t *check.C) {
@@ -81,7 +102,7 @@ func (s *ElasticProxyTestSuite) TestWebsocketBlocked(t *check.C) {
 	httpmock.RegisterNoResponder(responder)
 
 	respRec := httptest.NewRecorder()
-	request, _ := http.NewRequest("GET", "/tasks/index/ABC123", nil)
+	request, _ := http.NewRequest("GET", "/cloudstats/index/ABC123", nil)
 	request.Header.Set("Upgrade", "websocket")
 	s.proxy.ServeHTTP(respRec, request)
 
