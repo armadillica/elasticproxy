@@ -76,6 +76,28 @@ func (s *ElasticProxyTestSuite) TestGETBlocked(t *check.C) {
 	assert.Equal(t, http.StatusMethodNotAllowed, respRec.Code)
 }
 
+func (s *ElasticProxyTestSuite) TestPUTHappy(t *check.C) {
+	var respJSON struct {
+		Field    string `json:"field"`
+		Document struct {
+			Subfield time.Time `json:"subfield"`
+		} `json:"document"`
+	}
+	responder, err := httpmock.NewJsonResponder(200, respJSON)
+	assert.Nil(t, err)
+	httpmock.RegisterResponder(
+		"PUT", "http://elastic:9200/_template/kibana_index_template%3A.kibana",
+		responder,
+	)
+
+	respRec := httptest.NewRecorder()
+	request, _ := http.NewRequest("PUT", "/_template/kibana_index_template%3A.kibana", nil)
+	s.proxy.ServeHTTP(respRec, request)
+
+	assert.Equal(t, 200, respRec.Code)
+	assert.Equal(t, "application/json", respRec.Header().Get("Content-Type"))
+}
+
 func (s *ElasticProxyTestSuite) TestPUTBlocked(t *check.C) {
 	seenAnyRequest := false
 	responder := func(req *http.Request) (*http.Response, error) {

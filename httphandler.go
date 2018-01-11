@@ -19,6 +19,10 @@ var allowedPostPaths = map[string]bool{
 	"/_msearch":         true,
 	"/.kibana/_search":  true,
 	"/.kibana/_msearch": true,
+	"/.kibana/_mget":    true,
+}
+var allowedPutPaths = map[string]bool{
+	"/_template/kibana_index_template:.kibana": true,
 }
 
 // Place the paths that Kibana frequently polls at the top.
@@ -60,7 +64,7 @@ func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fields := log.Fields{
 		"remote_addr": r.RemoteAddr,
 		"method":      r.Method,
-		"url":         r.URL.String(),
+		"path":        r.URL.Path,
 	}
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		fields["x_forwarded_for"] = xff
@@ -84,6 +88,8 @@ func (ep *ElasticProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.WithFields(fields).Debug("Allowing GET request")
 	} else if r.Method == "POST" && allowedPostPaths[r.URL.Path] {
 		log.WithFields(fields).Debug("Allowing POST request")
+	} else if r.Method == "PUT" && allowedPutPaths[r.URL.Path] {
+		log.WithFields(fields).Debug("Allowing PUT request")
 	} else if !allowedMethods[r.Method] {
 		status = http.StatusMethodNotAllowed
 		w.WriteHeader(status)
